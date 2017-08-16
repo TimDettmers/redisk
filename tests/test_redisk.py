@@ -10,6 +10,8 @@ from uuid import uuid4
 repeats = 10
 
 
+
+
 def test_string_handler():
     tbl = Table('test')
     db = Redisk(tbl)
@@ -31,6 +33,18 @@ def test_int_handler():
         value = db.get(key)
         assert value == num, 'Int value from redisk different from the expected value!'
 
+def test_clear_db():
+    tbl = Table('test')
+    db = Redisk(tbl)
+
+    keys = []
+    for i in range(repeats):
+        key = str(uuid4())
+        db.set(key, i)
+    tbl.clear_db()
+
+    for key in keys:
+        db.exists(key) == False, 'Key was not deleted!'
 
 def test_int_list_handler():
     tbl = Table('test')
@@ -98,4 +112,34 @@ def test_append():
         for x1, x2 in zip(value, expected):
             assert x1 == x2, 'Int value from redisk different from the expected value!'
 
+def test_references():
+    tbl = Table('test')
+    db = Redisk(tbl)
+
+    keys = []
+    for i in range(repeats):
+        key1 = str(uuid4())
+        key2 = str(uuid4())
+        key3 = str(uuid4())
+        ref = str(uuid4())
+
+        value1 = 'a'
+        value2 = [3, 5, 6, 7]
+        value3 = ['aa', 'bb', 'cc']
+        db.set(key1, value1, reference_id=ref)
+        db.set(key2, value2, reference_id=ref)
+        db.set(key3, value3, reference_id=ref)
+
+        print(i)
+        x1, x2, x3 = db.get_with_reference(ref)
+        assert x1 == value1, 'Reference does not yield same data!'
+        assert len(x2) == 4, 'Reference does not yield same data!'
+        for a, b in zip(x2, value2):
+            assert a == b, 'Reference does not yield same data!'
+        for a, b in zip(x3, value3):
+            assert a == b, 'Reference does not yield same data!'
+
+        assert db.get_reference(key1) == ref, 'Wrong reference!'
+        assert db.get_reference(key2) == ref, 'Wrong reference!'
+        assert db.get_reference(key3) == ref, 'Wrong reference!'
 

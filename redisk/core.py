@@ -10,13 +10,14 @@ from uuid import uuid4
 import redis
 import os
 import ujson
+import shutil
 
 types = Types()
 
 class Table(object):
-    def __init__(self, name, base_path=None):
+    def __init__(self, name, base_path=None, db_id=0):
         self.name = name
-        self.db = redis.StrictRedis(host='localhost', port=6379, db=0)
+        self.db = redis.StrictRedis(host='localhost', port=6379, db=db_id)
         self.fhandle = None
         home = os.environ['HOME']
         self.base_dir = base_path or join(home, '.redisk')
@@ -77,6 +78,11 @@ class Table(object):
         if value is None: return key
         else: return join(key, str(uuid4()))
 
+    def clear_db(self):
+        shutil.rmtree(self.base_dir)
+        self.db.flushdb()
+        self.make_table_path()
+
 
 class Redisk(object):
     def __init__(self, tbl):
@@ -97,8 +103,18 @@ class Redisk(object):
             for t in p.get_supported_types():
                 self.type2processor[t] = p
 
-    def set(self, key, value):
+    def set(self, key, value, reference_id=None):
         self.type2processor[type(value)].set(key, value)
+        if reference_id is not None:
+            references_key = join('references', str(reference_id))
+            if self.exists(references_key): references = self.get(references_key)
+            else: references = []
+            references.append(key)
+            self.set(join('references', str(reference_id)), references)
+            self.set(join(key, 'reference'), str(reference_id))
+
+    def exists(self, key):
+        return self.tbl.get(key) is not None
 
     def get(self, key):
         start, length, type_value, pointers, vargs = self.tbl.get(key)
@@ -107,6 +123,16 @@ class Redisk(object):
             for p in pointers:
                 data += self.get(p)
         return data
+
+    def get_with_reference(self, reference_id):
+        references = self.get(join('references', str(reference_id)))
+        data = []
+        for key in references:
+            data.append(self.get(key))
+        return data
+
+    def get_reference(self, key):
+        return self.get(join(key, 'reference'))
 
     def append(self, key, value, flush_length_threshold=10000000):
         self.type2processor[list].append(key, value, flush_length_threshold)

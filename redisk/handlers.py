@@ -93,7 +93,7 @@ class ListDataHandler(AbstractDataHandler):
                 arrayType = vargs[0]
                 return self.get_with_array(key, value, strType)
             elif strType in ['0', '1']:
-                    return ujson.loads(value)
+                return ujson.loads(value)
             else:
                 raise Exception('Type not supported!')
 
@@ -106,11 +106,11 @@ class ListDataHandler(AbstractDataHandler):
         self.temp_store_lengths[key] += 1
 
         if self.temp_store_lengths[key] >= flush_length_threshold:
-            self.flush_with_pointer(key)
+            self.flush(key)
 
-    def flush_with_pointer(self, key):
+    def flush(self, key):
         values = self.temp_store.pop(key)
-        _ = self.temp_store_lengths.pop(key)
+        self.temp_store_lengths.pop(key)
         pointer = self.tbl.get_pointer(key)
         self.set(pointer, values)
         self.tbl.add_pointer(key, pointer)
@@ -126,7 +126,7 @@ class ListDataHandler(AbstractDataHandler):
 
     def close(self):
         for key in self.temp_store.keys():
-            self.flush_with_pointer(key)
+            self.flush(key)
 
 
 class NumpyDataHandler(AbstractDataHandler):
