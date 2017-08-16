@@ -5,9 +5,11 @@ from os.path import join
 
 from handlers import IntDataHandler, StringDataHandler, ListDataHandler, NumpyDataHandler
 from util import Types
+from uuid import uuid4
 
 import redis
 import os
+import ujson
 
 types = Types()
 
@@ -45,14 +47,35 @@ class Table(object):
     def __del__(self):
         self.close_connection()
 
+    def add_pointer(self, key, pointer):
+        if key == pointer: return
+        start, length, strType, strPointers, strArgs = self.db.get(join(self.name, key)).split(' ')
+        pointers = ujson.loads(strPointers)
+        pointers.append(pointer)
+        strPointers = ujson.dumps(pointers)
+        self.db.set(join(self.name, key), ' '.join([start, length, strType, strPointers, strArgs]))
 
-    def set(self, key, start, length, type_value):
+
+    def set(self, key, start, length, type_value, vargs=[]):
+        strArgs = ujson.dumps(vargs)
         strType = types.get_type_str(type_value)
-        self.db.set(join(self.name, key), ' '.join([str(start), str(length), strType]))
+        self.db.set(join(self.name, key), ' '.join([str(start), str(length), strType, '[]', strArgs]))
 
     def get(self, key):
-        return self.db.get(join(self.name, key))
+        value = self.db.get(join(self.name, key))
+        if value is None: return
+        else:
+            start, length, strType, strPointers , strArgs = value.split(' ')
+            start, length = int(start), int(length)
+            type_value = types.get_type(strType)
+            vargs = ujson.loads(strArgs)
+            pointers = ujson.loads(strPointers)
+            return start, length, type_value, pointers, vargs
 
+    def get_pointer(self, key):
+        value = self.db.get(join(self.name, key))
+        if value is None: return key
+        else: return join(key, str(uuid4()))
 
 
 class Redisk(object):
@@ -74,15 +97,20 @@ class Redisk(object):
             for t in p.get_supported_types():
                 self.type2processor[t] = p
 
-    def get_from_redis(self, key):
-        values = self.tbl.get(key)
-        if values is None: return None
-        start, length, strType = values.split(' ')
-        return int(start), int(length), types.get_type(strType)
-
     def set(self, key, value):
         self.type2processor[type(value)].set(key, value)
 
     def get(self, key):
-        start, length, type_value = self.get_from_redis(key)
-        return self.type2processor[type_value].get(key, start, length)
+        start, length, type_value, pointers, vargs = self.tbl.get(key)
+        data = self.type2processor[type_value].get(key, start, length, vargs)
+        if len(pointers) > 0:
+            for p in pointers:
+                data += self.get(p)
+        return data
+
+    def append(self, key, value, flush_length_threshold=10000000):
+        self.type2processor[list].append(key, value, flush_length_threshold)
+
+    def close(self):
+        for p in self.processors:
+            p.close()
