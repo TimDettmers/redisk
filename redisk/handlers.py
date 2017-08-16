@@ -1,5 +1,6 @@
 import array
 import ujson
+import numpy as np
 
 from redisk.util import Types
 
@@ -97,3 +98,29 @@ class ListDataHandler(AbstractDataHandler):
         arrayType = self.strType2ArrayType[strType]
         return array.array(arrayType, value).tolist()
 
+
+class NumpyDataHandler(AbstractDataHandler):
+    def __init__(self, tbl, fhandle):
+        super(NumpyDataHandler, self).__init__(tbl, fhandle)
+        self.supported_types.add(np.ndarray)
+        self.numpytype2byte = {}
+        self.byte2numpytype = {}
+        i = 0
+        for _, types in np.sctypes.items():
+            for t in types:
+                self.numpytype2byte[np.dtype(t)] = str(i)
+                self.byte2numpytype[str(i)] = np.dtype(t)
+                i+= 1
+
+    def set(self, key, value):
+        strType = self.numpytype2byte[value.dtype]
+        self.set_string(key, strType + value.tobytes(), type(value))
+
+    def get(self, key, start, length):
+        value = self.get_string(key, start, length)
+        if value is None: return None
+        else:
+            strType = value[0]
+            dtype = self.byte2numpytype[strType]
+            data = np.frombuffer(value[1:], dtype=dtype)
+            return data

@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 from os.path import join
 
-from handlers import IntDataHandler, StringDataHandler, ListDataHandler
+from handlers import IntDataHandler, StringDataHandler, ListDataHandler, NumpyDataHandler
 from util import Types
 
 import redis
@@ -69,6 +69,7 @@ class Redisk(object):
         self.processors.append(StringDataHandler(self.tbl, fhandle))
         self.processors.append(IntDataHandler(self.tbl, fhandle))
         self.processors.append(ListDataHandler(self.tbl, fhandle))
+        self.processors.append(NumpyDataHandler(self.tbl, fhandle))
         for p in self.processors:
             for t in p.get_supported_types():
                 self.type2processor[t] = p
@@ -85,5 +86,3 @@ class Redisk(object):
     def get(self, key):
         start, length, type_value = self.get_from_redis(key)
         return self.type2processor[type_value].get(key, start, length)
-
-

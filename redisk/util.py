@@ -1,3 +1,4 @@
+import numpy as np
 
 class Types(object):
     def __init__(self):
@@ -8,11 +9,13 @@ class Types(object):
         self.strType2type['1'] = unicode
         self.strType2type['2'] = int
         self.strType2type['3'] = list
+        self.strType2type['4'] = np.ndarray
 
         self.type2StrType[str] = '0'
         self.type2StrType[unicode] = '1'
         self.type2StrType[int] = '2'
         self.type2StrType[list] = '3'
+        self.type2StrType[np.ndarray] = '4'
 
     def get_type_str(self, type_value):
         if type_value not in self.type2StrType:
