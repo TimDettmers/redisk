@@ -1,3 +1,9 @@
+import array
+import ujson
+
+from redisk.util import Types
+
+types = Types()
 
 class AbstractDataHandler(object):
     def __init__(self, tbl, fhandle):
@@ -50,4 +56,44 @@ class IntDataHandler(AbstractDataHandler):
         value = self.get_string(key, start, length)
         if value is None: return None
         else: return int(value)
+
+
+class ListDataHandler(AbstractDataHandler):
+    def __init__(self, tbl, fhandle):
+        super(ListDataHandler, self).__init__(tbl, fhandle)
+        self.supported_types.add(list)
+        self.strType2ArrayType = {}
+        self.strType2ArrayType['2'] = 'i'
+
+    def set(self, key, value):
+        strType = types.get_type_str(type(value[0]))
+        if strType in self.strType2ArrayType:
+            self.set_with_array(key, value, strType)
+        elif strType in ['0', '1']:
+            str_value = ujson.dumps(value)
+            self.set_string(key, strType + str_value, type(value))
+        else:
+            raise Exception('Type not supported!')
+
+
+    def get(self, key, start, length):
+        value = self.get_string(key, start, length)
+        if value is None: return None
+        else:
+            strType = value[0]
+            if strType in self.strType2ArrayType:
+                return self.get_with_array(key, value[1:], strType)
+            elif strType in ['0', '1']:
+                    return ujson.loads(value[1:])
+            else:
+                raise Exception('Type not supported!')
+
+    def set_with_array(self, key, value, strType):
+        arrayType = self.strType2ArrayType[strType]
+        str_value = array.array(arrayType, value).tostring()
+        self.set_string(key, strType + str_value, type(value))
+
+    def get_with_array(self, key, value, strType):
+        arrayType = self.strType2ArrayType[strType]
+        return array.array(arrayType, value).tolist()
 

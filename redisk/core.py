@@ -3,21 +3,13 @@ from __future__ import unicode_literals
 
 from os.path import join
 
-from handlers import IntDataHandler, StringDataHandler
+from handlers import IntDataHandler, StringDataHandler, ListDataHandler
+from util import Types
 
 import redis
 import os
 
-strType2type = {}
-type2StrType = {}
-
-strType2type['0'] = str
-strType2type['1'] = unicode
-strType2type['2'] = int
-
-type2StrType[str] = '0'
-type2StrType[unicode] = '1'
-type2StrType[int] = '2'
+types = Types()
 
 class Table(object):
     def __init__(self, name, base_path=None):
@@ -55,7 +47,7 @@ class Table(object):
 
 
     def set(self, key, start, length, type_value):
-        strType = type2StrType[type_value]
+        strType = types.get_type_str(type_value)
         self.db.set(join(self.name, key), ' '.join([str(start), str(length), strType]))
 
     def get(self, key):
@@ -76,6 +68,7 @@ class Redisk(object):
         fhandle = self.tbl.open_connection()
         self.processors.append(StringDataHandler(self.tbl, fhandle))
         self.processors.append(IntDataHandler(self.tbl, fhandle))
+        self.processors.append(ListDataHandler(self.tbl, fhandle))
         for p in self.processors:
             for t in p.get_supported_types():
                 self.type2processor[t] = p
@@ -84,7 +77,7 @@ class Redisk(object):
         values = self.tbl.get(key)
         if values is None: return None
         start, length, strType = values.split(' ')
-        return int(start), int(length), strType2type[strType]
+        return int(start), int(length), types.get_type(strType)
 
     def set(self, key, value):
         self.type2processor[type(value)].set(key, value)
