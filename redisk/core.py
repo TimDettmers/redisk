@@ -3,8 +3,8 @@ from __future__ import unicode_literals
 
 from os.path import join
 
-from handlers import IntDataHandler, StringDataHandler, ListDataHandler, NumpyDataHandler
-from util import Types
+from redisk.handlers import IntDataHandler, StringDataHandler, ListDataHandler, NumpyDataHandler
+from redisk.util import Types
 from uuid import uuid4
 
 import redis
@@ -50,7 +50,7 @@ class Table(object):
 
     def add_pointer(self, key, pointer):
         if key == pointer: return
-        start, length, strType, strPointers, strArgs = self.db.get(join(self.name, key)).split(' ')
+        start, length, strType, strPointers, strArgs = self.db.get(join(self.name, key)).decode().split(' ')
         pointers = ujson.loads(strPointers)
         pointers.append(pointer)
         strPointers = ujson.dumps(pointers)
@@ -66,6 +66,7 @@ class Table(object):
         value = self.db.get(join(self.name, key))
         if value is None: return
         else:
+            value = value.decode()
             start, length, strType, strPointers , strArgs = value.split(' ')
             start, length = int(start), int(length)
             type_value = types.get_type(strType)

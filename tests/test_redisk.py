@@ -68,7 +68,7 @@ def test_int_str_handler():
     for major in range(repeats):
         data = []
         for minor in range(10):
-            data.append(unicode(uuid4()))
+            data.append(str(uuid4()))
         key = str(uuid4())
         db.set(key, data)
         value = db.get(key)

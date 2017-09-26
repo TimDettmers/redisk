@@ -5,14 +5,14 @@ class Types(object):
         self.strType2type = {}
         self.type2StrType = {}
 
-        self.strType2type['0'] = str
-        self.strType2type['1'] = unicode
+        self.strType2type['0'] = bytes
+        self.strType2type['1'] = str
         self.strType2type['2'] = int
         self.strType2type['3'] = list
         self.strType2type['4'] = np.ndarray
 
-        self.type2StrType[str] = '0'
-        self.type2StrType[unicode] = '1'
+        self.type2StrType[bytes] = '0'
+        self.type2StrType[str] = '1'
         self.type2StrType[int] = '2'
         self.type2StrType[list] = '3'
         self.type2StrType[np.ndarray] = '4'

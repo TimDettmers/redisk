@@ -17,7 +17,7 @@ class AbstractDataHandler(object):
     def get_supported_types(self):
         return self.supported_types
 
-    def set_string(self, key, value, type_value, *args):
+    def set_bytes(self, key, value, type_value, *args):
         self.fhandle.seek(0, 2)
         start = self.fhandle.tell()
         self.fhandle.write(value)
@@ -25,9 +25,11 @@ class AbstractDataHandler(object):
         length = end-start
         self.tbl.set(key, start, length, type_value, *args)
 
-    def get_string(self, key, start, length):
+    def get_bytes(self, key, start, length):
         self.fhandle.seek(int(start))
-        return self.fhandle.read(int(length))
+        value = self.fhandle.read(int(length))
+        if value is None: return None
+        return value
 
     def close(self):
         pass
@@ -41,14 +43,14 @@ class AbstractDataHandler(object):
 class StringDataHandler(AbstractDataHandler):
     def __init__(self, tbl, fhandle):
         super(StringDataHandler, self).__init__(tbl, fhandle)
-        self.supported_types.add(unicode)
         self.supported_types.add(str)
+        self.supported_types.add(bytes)
 
     def set(self, key, value):
-        self.set_string(key, value, type(value))
+        self.set_bytes(key, value.encode('utf8'), type(value))
 
     def get(self, key, start, length, vargs):
-        return self.get_string(key, start, length)
+        return self.get_bytes(key, str(start), length).decode('utf8')
 
 class IntDataHandler(AbstractDataHandler):
     def __init__(self, tbl, fhandle):
@@ -56,12 +58,12 @@ class IntDataHandler(AbstractDataHandler):
         self.supported_types.add(int)
 
     def set(self, key, value):
-        self.set_string(key, str(value), type(value))
+        self.set_bytes(key, str(value).encode(), type(value))
 
     def get(self, key, start, length, vargs):
-        value = self.get_string(key, start, length)
+        value = self.get_bytes(key, start, length)
         if value is None: return None
-        else: return int(value)
+        return int(value.decode())
 
 
 class ListDataHandler(AbstractDataHandler):
@@ -79,13 +81,13 @@ class ListDataHandler(AbstractDataHandler):
             self.set_with_array(key, value, strType)
         elif strType in ['0', '1']:
             str_value = ujson.dumps(value)
-            self.set_string(key, str_value, type(value), strType)
+            self.set_bytes(key, str_value.encode(), type(value), strType)
         else:
             raise Exception('Type not supported!')
 
 
     def get(self, key, start, length, vargs):
-        value = self.get_string(key, start, length)
+        value = self.get_bytes(key, start, length)
         if value is None: return None
         else:
             strType = str(vargs[0])
@@ -117,15 +119,15 @@ class ListDataHandler(AbstractDataHandler):
 
     def set_with_array(self, key, value, strType):
         arrayType = self.strType2ArrayType[strType]
-        str_value = array.array(arrayType, value).tostring()
-        self.set_string(key, str_value, type(value), strType)
+        str_value = array.array(arrayType, value).tobytes()
+        self.set_bytes(key, str_value, type(value), strType)
 
     def get_with_array(self, key, value, strType):
         arrayType = self.strType2ArrayType[strType]
         return array.array(arrayType, value).tolist()
 
     def close(self):
-        for key in self.temp_store.keys():
+        for key in list(self.temp_store.keys()):
             self.flush(key)
 
 
@@ -138,19 +140,19 @@ class NumpyDataHandler(AbstractDataHandler):
         i = 0
         for _, types in np.sctypes.items():
             for t in types:
-                self.numpytype2byte[np.dtype(t)] = str(i)
-                self.byte2numpytype[str(i)] = np.dtype(t)
+                self.numpytype2byte[np.dtype(t)] = i
+                self.byte2numpytype[i] = np.dtype(t)
                 i+= 1
 
     def set(self, key, value):
         strType = self.numpytype2byte[value.dtype]
-        self.set_string(key, value.tobytes(), type(value), strType)
+        self.set_bytes(key, value.tobytes(), type(value), strType)
 
     def get(self, key, start, length, vargs):
-        value = self.get_string(key, start, length)
+        value = self.get_bytes(key, start, length)
         if value is None: return None
         else:
-            strType = str(vargs[0])
+            strType = vargs
             dtype = self.byte2numpytype[strType]
             data = np.frombuffer(value, dtype=dtype)
             return data
