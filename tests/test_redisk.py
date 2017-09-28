@@ -23,6 +23,28 @@ def test_string_handler():
         value = db.get(key)
         assert value == expected, 'String value from redisk different from the expected value!'
 
+def test_close_open():
+    tbl = Table('test')
+    db = Redisk(tbl)
+
+    keys = []
+    expects = []
+    for i in range(repeats):
+        expected = str(uuid4())
+        key = str(uuid4())
+        db.set(key, expected)
+        keys.append(key)
+        expects.append(expected)
+
+    db.close()
+    tbl.close_connection()
+
+    tbl = Table('test')
+    db = Redisk(tbl)
+    for key, expected in zip(keys, expects):
+        value = db.get(key)
+        assert value == expected, 'String value from redisk different from the expected value!'
+
 def test_string_handler_batched_get():
     tbl = Table('test')
     db = Redisk(tbl)

@@ -58,7 +58,7 @@ class StringDataHandler(AbstractDataHandler):
         self.set_bytes(key, value.encode('utf8'), type(value))
 
     def get(self, key, start, length, vargs):
-        return self.get_bytes(key, str(start), length).decode('utf8')
+        return self.get_bytes(key, start, length).decode('utf8')
 
     def batched_get(self, triples, vargs):
         return self.batched_get_string(triples)

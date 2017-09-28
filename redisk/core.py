@@ -36,16 +36,17 @@ class Table(object):
         #with open(join(self.base_dir, self.name + '_lock'), 'a'):
         #    os.utime(join(self.base_dir, self.name), None)
 
-        self.fhandle = open(join(self.base_dir, self.name), 'wb+')
+        self.fhandle = open(join(self.base_dir, self.name), 'ab+')
         return self.fhandle
 
 
     def close_connection(self):
         #os.remove(join(self.base_dir, self.name + '_lock'))
+        print('connecting is being closed...')
         assert self.fhandle is not None, 'Connection to table is not open!'
         self.fhandle.close()
 
-    def __del__(self):
+    def __exit__(self):
         self.close_connection()
 
     def add_pointer(self, key, pointer):

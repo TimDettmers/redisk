@@ -1,0 +1,43 @@
+from whoosh.index import create_in, open_dir
+from whoosh.fields import *
+from whoosh.qparser import QueryParser
+
+import time
+from redisk.core import Redisk, Table
+
+main_path = '/home/tim/data/wiki_full'
+#schema = Schema(docid=ID(stored=True), content=TEXT(stored=False))
+schema = Schema(docid=ID(stored=True), content=TEXT(stored=True))
+
+tbl = Table('wiki_data')
+db = Redisk(tbl)
+
+ix = open_dir(main_path)
+with ix.searcher() as searcher:
+    scored = True
+    query = QueryParser("content", ix.schema).parse("Interstate 610")
+    query = QueryParser("content", ix.schema).parse(["Interstate 610", 'Leonardo DiCaprio'])
+    t0 = time.time()
+    doc_nums = searcher.docs_for_query(query)
+    print(time.time() - t0)
+    print(len(list(doc_nums)))
+    t0 = time.time()
+    results = searcher.search(query, scored=scored)
+    print(time.time() - t0)
+    print(results)
+
+
+    query = QueryParser("content", ix.schema).parse("Leonardo DiCaprio")
+    t0 = time.time()
+    doc_nums = searcher.docs_for_query(query)
+    print(time.time() - t0)
+    for num in doc_nums:
+        print(num)
+    t0 = time.time()
+    results = searcher.search(query, scored=scored)
+    print(time.time() - t0)
+    print(results)
+    t0 = time.time()
+    for r in results:
+        print(r)
+    print(time.time() - t0)
