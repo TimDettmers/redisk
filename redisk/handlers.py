@@ -31,6 +31,14 @@ class AbstractDataHandler(object):
         if value is None: return None
         return value
 
+
+    def batched_get_string(self, triples):
+        ret_values = []
+        for key, start, length in triples:
+            self.fhandle.seek(start)
+            ret_values.append(self.fhandle.read(length).decode('utf8'))
+        return ret_values
+
     def close(self):
         pass
 
@@ -51,6 +59,9 @@ class StringDataHandler(AbstractDataHandler):
 
     def get(self, key, start, length, vargs):
         return self.get_bytes(key, str(start), length).decode('utf8')
+
+    def batched_get(self, triples, vargs):
+        return self.batched_get_string(triples)
 
 class IntDataHandler(AbstractDataHandler):
     def __init__(self, tbl, fhandle):

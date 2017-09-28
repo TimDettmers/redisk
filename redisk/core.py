@@ -125,6 +125,16 @@ class Redisk(object):
                 data += self.get(p)
         return data
 
+    def batched_get(self, keys):
+        triples = []
+        type_value_batch = None
+        for key in keys:
+            start, length, type_value, pointers, vargs = self.tbl.get(key)
+            if type_value_batch is None: type_value_batch = type_value
+            assert type_value == type_value_batch, 'Batched queries only work for a single data type!'
+            triples.append((key, int(start), int(length)))
+        return self.type2processor[type_value].batched_get(triples, None)
+
     def get_with_reference(self, reference_id):
         references = self.get(join('references', str(reference_id)))
         data = []
@@ -141,3 +151,6 @@ class Redisk(object):
     def close(self):
         for p in self.processors:
             p.close()
+
+    def __exit__(self):
+        self.close()
