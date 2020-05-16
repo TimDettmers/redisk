@@ -1,19 +1,26 @@
 from __future__ import unicode_literals, print_function
 
+import os
+import shutil
 import pytest
 import numpy as np
 
 from redisk.core import Table, Redisk
 
 from uuid import uuid4
+from os.path import join, exists
+
 
 repeats = 10
 
+base_path = join('/tmp/redisk', str(uuid4()))
 
+if not exists(base_path):
+    os.makedirs(base_path)
 
 
 def test_string_handler():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     for i in range(repeats):
@@ -24,7 +31,7 @@ def test_string_handler():
         assert value == expected, 'String value from redisk different from the expected value!'
 
 def test_close_open():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     keys = []
@@ -39,14 +46,14 @@ def test_close_open():
     db.close()
     tbl.close_connection()
 
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
     for key, expected in zip(keys, expects):
         value = db.get(key)
         assert value == expected, 'String value from redisk different from the expected value!'
 
 def test_string_handler_batched_get():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     for i in range(repeats):
@@ -65,7 +72,7 @@ def test_string_handler_batched_get():
             assert value == expected, 'String value from redisk different from the expected value!'
 
 def test_int_handler():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     for num in np.random.randint(0, 100, size=(repeats)):
@@ -75,7 +82,7 @@ def test_int_handler():
         assert value == num, 'Int value from redisk different from the expected value!'
 
 def test_clear_db():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     keys = []
@@ -88,7 +95,7 @@ def test_clear_db():
         db.exists(key) == False, 'Key was not deleted!'
 
 def test_int_list_handler():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     for num in np.random.randint(0, 100, size=(repeats, 10)):
@@ -103,7 +110,7 @@ def test_int_list_handler():
             assert x1 == x2, 'Int value from redisk different from the expected value!'
 
 def test_int_str_handler():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     for major in range(repeats):
@@ -120,7 +127,7 @@ def test_int_str_handler():
             assert x1 == x2, 'String value from redisk different from the expected value!'
 
 def test_numpy_handler():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     for arr in np.random.rand(repeats, 10):
@@ -131,7 +138,7 @@ def test_numpy_handler():
         np.testing.assert_array_equal(value, arr, 'Arrays are not equal!')
 
 def test_append():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
     length = 3
 
@@ -154,7 +161,7 @@ def test_append():
             assert x1 == x2, 'Int value from redisk different from the expected value!'
 
 def test_references():
-    tbl = Table('test')
+    tbl = Table(name='test', base_path=base_path)
     db = Redisk(tbl)
 
     keys = []

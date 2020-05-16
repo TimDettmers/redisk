@@ -15,7 +15,7 @@ import shutil
 types = Types()
 
 class Table(object):
-    def __init__(self, name, base_path=None, db_id=0):
+    def __init__(self, name, base_path, db_id=0):
         self.name = name
         self.db = redis.StrictRedis(host='localhost', port=6379, db=db_id)
         self.fhandle = None
