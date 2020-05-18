@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 from os.path import join
 
-from redisk.handlers import IntDataHandler, StringDataHandler, ListDataHandler, NumpyDataHandler
+from redisk.handlers import IntDataHandler, StringDataHandler, ListDataHandler, NumpyDataHandler, DictDataHandler
 from redisk.util import Types
 from uuid import uuid4
 
@@ -15,17 +15,18 @@ import shutil
 types = Types()
 
 class Table(object):
-    def __init__(self, name, base_path, db_id=0):
+    def __init__(self, name, base_dir, db_id=0):
         self.name = name
         self.db = redis.StrictRedis(host='localhost', port=6379, db=db_id)
-        self.fhandle = None
+        self.read_fhandle = None
+        self.write_path = join(base_dir, self.name)
         home = os.environ['HOME']
-        self.base_dir = base_path or join(home, '.redisk')
+        self.base_dir = base_dir
         self.make_table_path()
 
     def make_table_path(self):
         if not os.path.exists(self.base_dir):
-            os.mkdir(self.base_dir)
+            os.makedirs(self.base_dir)
         if not os.path.exists(join(self.base_dir, self.name)):
             with open(join(self.base_dir, self.name), 'a'):
                 os.utime(join(self.base_dir, self.name), None)
@@ -36,15 +37,15 @@ class Table(object):
         #with open(join(self.base_dir, self.name + '_lock'), 'a'):
         #    os.utime(join(self.base_dir, self.name), None)
 
-        self.fhandle = open(join(self.base_dir, self.name), 'ab+')
-        return self.fhandle
+        self.read_fhandle = open(join(self.base_dir, self.name), 'rb+')
+        return self.read_fhandle, self.write_path
 
 
     def close_connection(self):
         #os.remove(join(self.base_dir, self.name + '_lock'))
         print('connecting is being closed...')
-        assert self.fhandle is not None, 'Connection to table is not open!'
-        self.fhandle.close()
+        assert self.read_fhandle is not None, 'Connection to table is not open!'
+        self.read_fhandle.close()
 
     def __exit__(self):
         self.close_connection()
@@ -80,10 +81,6 @@ class Table(object):
         if value is None: return key
         else: return join(key, str(uuid4()))
 
-    def clear_db(self):
-        shutil.rmtree(self.base_dir)
-        self.db.flushdb()
-        self.make_table_path()
 
 
 class Redisk(object):
@@ -96,16 +93,18 @@ class Redisk(object):
         self.construct_processors()
 
     def construct_processors(self):
-        fhandle = self.tbl.open_connection()
-        self.processors.append(StringDataHandler(self.tbl, fhandle))
-        self.processors.append(IntDataHandler(self.tbl, fhandle))
-        self.processors.append(ListDataHandler(self.tbl, fhandle))
-        self.processors.append(NumpyDataHandler(self.tbl, fhandle))
+        fhandle, wpath = self.tbl.open_connection()
+        self.processors.append(StringDataHandler(self.tbl, fhandle, wpath))
+        self.processors.append(IntDataHandler(self.tbl, fhandle, wpath))
+        self.processors.append(ListDataHandler(self.tbl, fhandle, wpath))
+        self.processors.append(DictDataHandler(self.tbl, fhandle, wpath))
+        self.processors.append(NumpyDataHandler(self.tbl, fhandle, wpath))
         for p in self.processors:
             for t in p.get_supported_types():
                 self.type2processor[t] = p
 
-    def set(self, key, value, reference_id=None):
+    def set(self, key, value, col=None, reference_id=None):
+        if col is not None: key = '{0}/{1}'.format(key, col)
         self.type2processor[type(value)].set(key, value)
         if reference_id is not None:
             references_key = join('references', str(reference_id))
@@ -118,8 +117,11 @@ class Redisk(object):
     def exists(self, key):
         return self.tbl.get(key) is not None
 
-    def get(self, key):
-        start, length, type_value, pointers, vargs = self.tbl.get(key)
+    def get(self, key, col=None):
+        if col is not None: key = '{0}/{1}'.format(key, col)
+        values = self.tbl.get(key)
+        if values is None: return None
+        start, length, type_value, pointers, vargs = values
         data = self.type2processor[type_value].get(key, start, length, vargs)
         if len(pointers) > 0:
             for p in pointers:
@@ -152,6 +154,11 @@ class Redisk(object):
     def close(self):
         for p in self.processors:
             p.close()
+
+    def delete_db(self):
+        if os.path.exists(self.tbl.base_dir):
+            shutil.rmtree(self.tbl.base_dir)
+        self.tbl.db.flushdb()
 
     def __exit__(self):
         self.close()

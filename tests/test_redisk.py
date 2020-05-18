@@ -5,22 +5,28 @@ import shutil
 import pytest
 import numpy as np
 
-from redisk.core import Table, Redisk
+from redisk import Table, Redisk
 
 from uuid import uuid4
 from os.path import join, exists
+from collections import OrderedDict
 
 
 repeats = 10
 
-base_path = join('/tmp/redisk', str(uuid4()))
+base_path = '/tmp/redisk/unittests/'
 
 if not exists(base_path):
     os.makedirs(base_path)
 
+tbl = Table(name='test', base_dir=base_path)
+db = Redisk(tbl)
+db.delete_db()
+
+np.random.seed(0)
 
 def test_string_handler():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     for i in range(repeats):
@@ -30,8 +36,13 @@ def test_string_handler():
         value = db.get(key)
         assert value == expected, 'String value from redisk different from the expected value!'
 
+def test_make_long_path():
+    tbl = Table(name='test', base_dir='/tmp/redisk/very/long/path/')
+    db = Redisk(tbl)
+    db.delete_db()
+
 def test_close_open():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     keys = []
@@ -46,14 +57,16 @@ def test_close_open():
     db.close()
     tbl.close_connection()
 
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
     for key, expected in zip(keys, expects):
         value = db.get(key)
         assert value == expected, 'String value from redisk different from the expected value!'
 
+    db.delete_db()
+
 def test_string_handler_batched_get():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     for i in range(repeats):
@@ -70,9 +83,10 @@ def test_string_handler_batched_get():
         values = db.batched_get(keys)
         for value, expected in zip(values, expected_values):
             assert value == expected, 'String value from redisk different from the expected value!'
+    db.delete_db()
 
 def test_int_handler():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     for num in np.random.randint(0, 100, size=(repeats)):
@@ -80,22 +94,41 @@ def test_int_handler():
         db.set(key, int(num))
         value = db.get(key)
         assert value == num, 'Int value from redisk different from the expected value!'
+    db.delete_db()
 
-def test_clear_db():
-    tbl = Table(name='test', base_path=base_path)
+def test_col():
+    tbl = Table(name='test', base_dir=base_path)
+    db = Redisk(tbl)
+
+    for num in np.random.randint(0, 100, size=(repeats)):
+        key = str(uuid4())
+        db.set(key, int(num), col=1)
+        db.set(key, int(num)+3, col='test')
+        value = db.get(key)
+        assert value is None
+        value = db.get(key, col=1)
+        assert value == num, 'Int value from redisk different from the expected value!'
+        value = db.get(key, col='test')
+        assert value == num+3, 'Int value from redisk different from the expected value!'
+    db.delete_db()
+
+
+def test_delete_db():
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     keys = []
     for i in range(repeats):
         key = str(uuid4())
         db.set(key, i)
-    tbl.clear_db()
+    db.delete_db()
 
     for key in keys:
         db.exists(key) == False, 'Key was not deleted!'
+    db.delete_db()
 
 def test_int_list_handler():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     for num in np.random.randint(0, 100, size=(repeats, 10)):
@@ -108,9 +141,10 @@ def test_int_list_handler():
         assert type(value[0]) == type(num[0]), 'Inner types are different'
         for x1, x2 in zip(value, num):
             assert x1 == x2, 'Int value from redisk different from the expected value!'
+    db.delete_db()
 
 def test_int_str_handler():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     for major in range(repeats):
@@ -125,9 +159,10 @@ def test_int_str_handler():
         assert type(value[0]) == type(data[0]), 'Inner types are different'
         for x1, x2 in zip(value, data):
             assert x1 == x2, 'String value from redisk different from the expected value!'
+    db.delete_db()
 
 def test_numpy_handler():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     for arr in np.random.rand(repeats, 10):
@@ -136,9 +171,42 @@ def test_numpy_handler():
         value = db.get(key)
         assert type(value) == type(arr), 'Types are different'
         np.testing.assert_array_equal(value, arr, 'Arrays are not equal!')
+    db.delete_db()
+
+def test_dict_list_handler():
+    tbl = Table(name='test', base_dir=base_path)
+    db = Redisk(tbl)
+
+    dict1 = {}
+    for j in range(repeats):
+        # fill with some random data
+        for i in range(10):
+            dict1[str(uuid4())] = str(uuid4())
+            dict1[str(uuid4())] = np.random.rand(1)[0]
+
+        # test normal dict
+        key = str(uuid4())
+        db.set(key, dict1)
+        dict2 = db.get(key)
+
+        for key, value1 in dict1.items():
+            value2 = dict2[key]
+            assert value1 == value2
+
+        # test OrderedDict
+        key = str(uuid4())
+        db.set(key, OrderedDict(dict1))
+        dict2 = db.get(key)
+
+        for key, value1 in dict1.items():
+            value2 = dict2[key]
+            assert value1 == value2
+
+    db.delete_db()
+    db.close()
 
 def test_append():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
     length = 3
 
@@ -159,9 +227,10 @@ def test_append():
         assert type(value[0]) == type(expected[0]), 'Inner types are different'
         for x1, x2 in zip(value, expected):
             assert x1 == x2, 'Int value from redisk different from the expected value!'
+    db.delete_db()
 
 def test_references():
-    tbl = Table(name='test', base_path=base_path)
+    tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
 
     keys = []
@@ -190,4 +259,5 @@ def test_references():
         assert db.get_reference(key1) == ref, 'Wrong reference!'
         assert db.get_reference(key2) == ref, 'Wrong reference!'
         assert db.get_reference(key3) == ref, 'Wrong reference!'
+    db.delete_db()
 
