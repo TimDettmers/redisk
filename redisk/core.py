@@ -15,9 +15,9 @@ import shutil
 types = Types()
 
 class Table(object):
-    def __init__(self, name, base_dir, db_id=0):
+    def __init__(self, name, base_dir, db_id=0, host='localhost'):
         self.name = name
-        self.db = redis.StrictRedis(host='localhost', port=6379, db=db_id)
+        self.db = redis.StrictRedis(host='localhost', port=6379, db=db_id, decode_responses=True)
         self.read_fhandle = None
         self.write_path = join(base_dir, self.name)
         home = os.environ['HOME']
@@ -52,7 +52,7 @@ class Table(object):
 
     def add_pointer(self, key, pointer):
         if key == pointer: return
-        start, length, strType, strPointers, strArgs = self.db.get(join(self.name, key)).decode().split(' ')
+        start, length, strType, strPointers, strArgs = self.db.get(join(self.name, key)).split(' ')
         pointers = ujson.loads(strPointers)
         pointers.append(pointer)
         strPointers = ujson.dumps(pointers)
@@ -68,7 +68,6 @@ class Table(object):
         value = self.db.get(join(self.name, key))
         if value is None: return
         else:
-            value = value.decode()
             start, length, strType, strPointers , strArgs = value.split(' ')
             start, length = int(start), int(length)
             type_value = types.get_type(strType)
@@ -76,11 +75,24 @@ class Table(object):
             pointers = ujson.loads(strPointers)
             return start, length, type_value, pointers, vargs
 
+    def sadd(self, key, value):
+        self.db.sadd('{0}/{1}'.format(self.name, key), value)
+
+    def get_members(self, key):
+        return self.db.smembers('{0}/{1}'.format(self.name, key))
+
     def get_pointer(self, key):
         value = self.db.get(join(self.name, key))
         if value is None: return key
         else: return join(key, str(uuid4()))
 
+    def key_col_iter(self):
+        for key in self.db.scan_iter(match='{0}/*'.format(self.name)):
+            key = key[len('{0}/'.format(self.name)):]
+            if key.count('/') > 0:
+                col = key[key.index('/')+1:]
+                key = key[:key.index('/')]
+            yield key, col
 
 
 class Redisk(object):
@@ -127,6 +139,16 @@ class Redisk(object):
             for p in pointers:
                 data += self.get(p)
         return data
+
+    def sadd(self, key, value):
+        self.tbl.sadd(key, value)
+
+    def get_members(self, key):
+        return self.tbl.get_members(key)
+
+    def key_col_pairs(self):
+        for key, col in self.tbl.key_col_iter():
+            yield key, col
 
     def batched_get(self, keys):
         triples = []

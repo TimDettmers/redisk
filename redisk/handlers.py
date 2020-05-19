@@ -179,13 +179,13 @@ class NumpyDataHandler(AbstractDataHandler):
 
     def set(self, key, value):
         strType = self.numpytype2byte[value.dtype]
-        self.set_bytes(key, value.tobytes(), type(value), strType)
+        self.set_bytes(key, value.tobytes(), type(value), [strType, value.shape])
 
     def get(self, key, start, length, vargs):
         value = self.get_bytes(key, start, length)
         if value is None: return None
         else:
-            strType = vargs
+            strType, shape = vargs
             dtype = self.byte2numpytype[strType]
-            data = np.frombuffer(value, dtype=dtype)
+            data = np.frombuffer(value, dtype=dtype).reshape(shape)
             return data

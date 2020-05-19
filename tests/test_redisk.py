@@ -173,6 +173,18 @@ def test_numpy_handler():
         np.testing.assert_array_equal(value, arr, 'Arrays are not equal!')
     db.delete_db()
 
+def test_numpy_handler_2D():
+    tbl = Table(name='test', base_dir=base_path)
+    db = Redisk(tbl)
+
+    for arr in np.random.rand(repeats, 10, 5):
+        key = str(uuid4())
+        db.set(key, arr)
+        value = db.get(key)
+        assert type(value) == type(arr), 'Types are different'
+        np.testing.assert_array_equal(value, arr, 'Arrays are not equal!')
+    db.delete_db()
+
 def test_dict_list_handler():
     tbl = Table(name='test', base_dir=base_path)
     db = Redisk(tbl)
@@ -247,7 +259,6 @@ def test_references():
         db.set(key2, value2, reference_id=ref)
         db.set(key3, value3, reference_id=ref)
 
-        print(i)
         x1, x2, x3 = db.get_with_reference(ref)
         assert x1 == value1, 'Reference does not yield same data!'
         assert len(x2) == 4, 'Reference does not yield same data!'
@@ -261,3 +272,38 @@ def test_references():
         assert db.get_reference(key3) == ref, 'Wrong reference!'
     db.delete_db()
 
+
+def test_sadd():
+    tbl = Table(name='test', base_dir=base_path)
+    db = Redisk(tbl)
+    db.sadd('test', 0.1)
+    db.sadd('test', 0.2)
+    db.sadd('test', 0.3)
+    db.sadd('test', 0.3)
+    db.sadd('test', 0.3)
+    db.sadd('test', 0.2)
+
+    setvalues = list(db.get_members('test'))
+    setvalues.sort()
+    setvalues = [float(s) for s in setvalues]
+    assert all([s1==s2 for s1, s2 in zip(setvalues, [0.1, 0.2, 0.3])])
+    db.delete_db()
+
+def test_key_iter():
+    tbl = Table(name='test', base_dir=base_path)
+    db = Redisk(tbl)
+
+    keys = [str(uuid4()) for i in range(10)]
+    cols = [str(uuid4()) for i in range(10)]
+    values = [str(uuid4()) for i in range(10)]
+    for key, col, value in zip(keys, cols, values):
+        db.set(key, value, col=col)
+
+    keys, cols, values = set(keys), set(cols), set(values)
+
+    count = 0
+    for key, col in db.key_col_pairs():
+        value = db.get(key, col=col)
+        count += 1 if (key in keys and col in cols and value in values) else 0
+    assert count == 10
+    db.delete_db()
